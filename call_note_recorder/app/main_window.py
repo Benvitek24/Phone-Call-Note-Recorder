@@ -177,6 +177,7 @@ class AppController(QObject):
         self.recording_thread.start()
 
     def stop_recording(self):
+        log.info("Stop pressed — signalling recording thread")
         self._stop_timer()
         if self.recording_thread and self.recording_thread.isRunning():
             self.panel.set_status("Saving audio...", "transcribing")

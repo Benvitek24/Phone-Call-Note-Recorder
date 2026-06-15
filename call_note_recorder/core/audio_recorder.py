@@ -13,7 +13,9 @@ Corrections folded in:
 """
 
 import threading
+import time
 import wave
+from math import gcd
 
 import numpy as np
 import pyaudiowpatch as pyaudio
@@ -134,6 +136,9 @@ class RecordingThread(QThread):
             self.no_audio_signal.emit()
             return
 
+        log.info("Stopped. mic frames=%d, loopback frames=%d",
+                 len(self.mic_frames), len(self.loopback_frames))
+
         # Persist WAVs (downmixed to mono, resampled to 16 kHz).
         try:
             if self.mic_frames:
@@ -141,6 +146,7 @@ class RecordingThread(QThread):
             has_loopback = bool(self.loopback_frames)
             if has_loopback:
                 self._save_wav(self.loopback_frames, LOOPBACK_WAV, lb_rate, lb_ch)
+            log.info("WAVs saved (has_loopback=%s)", has_loopback)
         except Exception as e:  # noqa: BLE001
             log.exception("Saving WAV failed")
             self.error_signal.emit(str(e))
@@ -159,10 +165,19 @@ class RecordingThread(QThread):
                 input_device_index=int(device_info['index']),
                 frames_per_buffer=CHUNK,
             )
+            # Poll for available frames instead of a blocking read. A blocking
+            # read on a SILENT loopback stream (no system audio playing) never
+            # returns, so the stop flag would never be seen and the app would
+            # hang on Stop. Polling lets us check _stop_flag continuously.
             while not self._stop_flag:
                 try:
+                    avail = stream.get_read_available()
+                    if avail <= 0:
+                        time.sleep(0.005)
+                        continue
+                    to_read = CHUNK if avail >= CHUNK else avail
                     frames_list.append(
-                        stream.read(CHUNK, exception_on_overflow=False)
+                        stream.read(to_read, exception_on_overflow=False)
                     )
                 except (OSError, IOError):
                     # Device removed / unplugged mid-recording.
@@ -195,10 +210,14 @@ class RecordingThread(QThread):
             usable = (len(audio) // channels) * channels
             audio = audio[:usable].reshape(-1, channels).mean(axis=1)
 
-        # Resample to 16 kHz for Whisper.
-        if source_rate != TARGET_SAMPLE_RATE and len(audio) > 0:
-            num = int(round(len(audio) * TARGET_SAMPLE_RATE / source_rate))
-            audio = sp_signal.resample(audio, num)
+        # Resample to 16 kHz for Whisper. Use polyphase resampling (integer
+        # up/down ratio) rather than FFT-based resample(): the latter can be
+        # pathologically slow for clip lengths with large prime factors.
+        if int(source_rate) != TARGET_SAMPLE_RATE and len(audio) > 0:
+            g = gcd(int(source_rate), TARGET_SAMPLE_RATE)
+            up = TARGET_SAMPLE_RATE // g
+            down = int(source_rate) // g
+            audio = sp_signal.resample_poly(audio, up, down)
 
         audio = np.clip(audio, -32768, 32767).astype(np.int16)
 
