@@ -1,0 +1,12 @@
+# Repo-root ignores
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime artifacts never belong in the repo
+*.gguf
+*.wav
+*.log

@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+*.spec
+
+# Runtime artifacts (these live in %APPDATA%, never in the repo)
+*.gguf
+*.wav
+*.log
+config.json
+training_data/
+
+.DS_Store
+Thumbs.db

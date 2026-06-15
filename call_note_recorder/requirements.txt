@@ -1,0 +1,17 @@
+# Call Note Recorder — runtime dependencies (Windows target).
+# Versions match the confirmed-working set on KAVITEKB.
+#
+# NOTE: llama-cpp-python MUST be built from source on 12th Gen Intel (no AVX-512).
+# Do NOT `pip install` it normally — use the source build with CMAKE_ARGS from
+# the spec / README. It is listed here for reference only.
+
+PyQt6==6.11.0
+pyaudiowpatch==0.2.12.8
+faster-whisper==1.2.1
+pyperclip==1.11.0
+pip-system-certs==5.3
+scipy
+numpy
+requests
+
+# llama-cpp-python==0.3.28   # build from source, see README "LLM build"
