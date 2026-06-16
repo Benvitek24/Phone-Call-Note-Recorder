@@ -4,6 +4,7 @@ and also echoes to the console during development.
 
 import logging
 import os
+import sys
 from logging.handlers import RotatingFileHandler
 
 from utils.paths import LOGS_DIR
@@ -30,7 +31,10 @@ def setup_logging():
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.addHandler(handler)
-    root.addHandler(logging.StreamHandler())
+    # Console handler only if there's a console (a no-window launch via pythonw
+    # sets sys.stderr to None, which would otherwise crash logging).
+    if sys.stderr is not None:
+        root.addHandler(logging.StreamHandler())
 
     _CONFIGURED = True
     return logging.getLogger("call_note_recorder")
