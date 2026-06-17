@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import QMessageBox
 from app.icon_widget import IconWidget
 from app.panel_widget import PanelWidget
 from core import audio_recorder
-from core.audio_recorder import RecordingThread, detect_devices
+from core.audio_recorder import RecordingThread, select_devices
+from app.device_dialog import choose_devices
 from core.transcription import TranscriptionThread
 from core.llm_engine import SummarizationThread
 from core.model_loader import ModelLoaderThread
@@ -103,6 +104,7 @@ class AppController(QObject):
         self.panel.save_clicked.connect(self.on_save_notes)
         self.panel.retry_clicked.connect(self.on_retry)
         self.panel.download_update_clicked.connect(self.on_download_update)
+        self.panel.devices_clicked.connect(self.open_device_settings)
         # CRM header: load saved value, persist on edit (review #5)
         self.panel.set_crm_header(self.config.get_crm_header())
         self.panel.header_changed.connect(self.config.set_crm_header)
@@ -152,7 +154,8 @@ class AppController(QObject):
         # TRANSCRIBING / SUMMARIZING: ignore record presses.
 
     def start_recording(self):
-        self.mic_device, self.loopback_device = detect_devices()
+        mic_name, output_name = self.config.get_device_prefs()
+        self.mic_device, self.loopback_device = select_devices(mic_name, output_name)
         log.info("Devices selected — mic (You): %r | loopback (Customer): %r",
                  (self.mic_device or {}).get('name'),
                  (self.loopback_device or {}).get('name'))
@@ -379,6 +382,16 @@ class AppController(QObject):
 
     def on_download_update(self):
         webbrowser.open(f"https://github.com/{GITHUB_REPO}/releases/latest")
+
+    def open_device_settings(self):
+        cur_mic, cur_out = self.config.get_device_prefs()
+        parent = self.panel if self.panel.isVisible() else self.icon
+        result = choose_devices(parent, cur_mic, cur_out)
+        if result is not None:
+            mic_name, output_name = result
+            self.config.set_device_prefs(mic_name, output_name)
+            log.info("Saved device prefs — mic=%r output=%r", mic_name, output_name)
+            self.panel.set_status("Audio devices updated", "ready")
 
     # ---------------------------------------------------------------- timer
     def _start_timer(self):

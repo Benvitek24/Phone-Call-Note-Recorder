@@ -61,13 +61,110 @@ def detect_devices():
                     loopback = info
                     break
 
-        # Fallback: any loopback device.
-        if loopback is None:
+        loopback = _default_loopback(p)
+        return mic, loopback
+    finally:
+        p.terminate()
+
+
+def _default_loopback(p):
+    """The loopback that matches the default output device, else any loopback."""
+    try:
+        output_name = str(p.get_default_output_device_info()['name'])[:15]
+    except (OSError, IOError):
+        output_name = ""
+    if output_name:
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if '[Loopback]' in info['name'] and output_name in info['name']:
+                return info
+    for i in range(p.get_device_count()):
+        info = p.get_device_info_by_index(i)
+        if '[Loopback]' in info['name']:
+            return info
+    return None
+
+
+def list_input_devices():
+    """[{'index', 'name'}] of real microphones (not loopbacks). For the picker."""
+    p = pyaudio.PyAudio()
+    try:
+        out, seen = [], set()
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if (int(info.get('maxInputChannels', 0)) > 0
+                    and '[Loopback]' not in info['name']
+                    and info['name'] not in seen):
+                seen.add(info['name'])
+                out.append({'index': i, 'name': info['name']})
+        return out
+    finally:
+        p.terminate()
+
+
+def list_output_devices():
+    """[{'index','name','has_loopback'}] of playback devices. For the picker.
+
+    'has_loopback' tells the UI whether the customer side can be captured from
+    that output (almost always yes on WASAPI).
+    """
+    p = pyaudio.PyAudio()
+    try:
+        loopback_bases = set()
+        for i in range(p.get_device_count()):
+            name = p.get_device_info_by_index(i)['name']
+            if '[Loopback]' in name:
+                loopback_bases.add(name.split(' [Loopback]')[0])
+        out, seen = [], set()
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if (int(info.get('maxOutputChannels', 0)) > 0
+                    and '[Loopback]' not in info['name']
+                    and info['name'] not in seen):
+                seen.add(info['name'])
+                out.append({'index': i, 'name': info['name'],
+                            'has_loopback': info['name'] in loopback_bases})
+        return out
+    finally:
+        p.terminate()
+
+
+def select_devices(mic_name=None, output_name=None):
+    """Resolve saved device NAMES (stable across re-plugs) to current device
+    infos. Falls back to Windows defaults if a saved name isn't present."""
+    p = pyaudio.PyAudio()
+    try:
+        mic = None
+        if mic_name:
             for i in range(p.get_device_count()):
                 info = p.get_device_info_by_index(i)
-                if '[Loopback]' in info['name']:
+                if (info['name'] == mic_name
+                        and int(info.get('maxInputChannels', 0)) > 0
+                        and '[Loopback]' not in info['name']):
+                    mic = info
+                    break
+        if mic is None:
+            try:
+                mic = p.get_default_input_device_info()
+            except (OSError, IOError):
+                mic = None
+
+        loopback = None
+        if output_name:
+            target = f"{output_name} [Loopback]"
+            for i in range(p.get_device_count()):
+                info = p.get_device_info_by_index(i)
+                if info['name'] == target:
                     loopback = info
                     break
+            if loopback is None:  # looser match on the output's base name
+                for i in range(p.get_device_count()):
+                    info = p.get_device_info_by_index(i)
+                    if '[Loopback]' in info['name'] and output_name[:15] in info['name']:
+                        loopback = info
+                        break
+        if loopback is None:
+            loopback = _default_loopback(p)
 
         return mic, loopback
     finally:

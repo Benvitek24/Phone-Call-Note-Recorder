@@ -46,6 +46,15 @@ class TranscriptionThread(QThread):
                     LOOPBACK_WAV, "Customer", "Transcribing customer audio..."
                 )
 
+            # Remove customer bleed from the mic channel (review: cross-hardware
+            # robustness). The loopback is ALWAYS clean customer, so any mic word
+            # that duplicates a loopback word at the same time is bleed.
+            if loopback_words:
+                before = len(mic_words)
+                mic_words = self._suppress_bleed(mic_words, loopback_words)
+                log.info("Bleed suppression: kept %d/%d mic words",
+                         len(mic_words), before)
+
             transcript = self._merge_words(mic_words + loopback_words)
 
             for path in (MIC_WAV, LOOPBACK_WAV):
@@ -90,6 +99,39 @@ class TranscriptionThread(QThread):
                 words_out.append({"speaker": speaker, "word": " " + text,
                                   "start": seg.start})
         return words_out
+
+    @staticmethod
+    def _suppress_bleed(mic_words, loopback_words, window=1.0):
+        """Drop mic words that duplicate a loopback (customer) word near the same
+        time — those are the customer's voice bleeding into the mic. Returns the
+        rep-only mic words."""
+        import bisect
+        import re
+
+        def norm(w):
+            return re.sub(r'[^a-z0-9]', '', w.lower())
+
+        cust = sorted(
+            ((norm(w['word']), w['start']) for w in loopback_words
+             if w.get('start') is not None and norm(w['word'])),
+            key=lambda x: x[1],
+        )
+        if not cust:
+            return mic_words
+        starts = [c[1] for c in cust]
+
+        kept = []
+        for mw in mic_words:
+            nt = norm(mw['word'])
+            s = mw.get('start')
+            if not nt or s is None:
+                kept.append(mw)
+                continue
+            lo = bisect.bisect_left(starts, s - window)
+            hi = bisect.bisect_right(starts, s + window)
+            if not any(cust[j][0] == nt for j in range(lo, hi)):
+                kept.append(mw)
+        return kept
 
     @staticmethod
     def _merge_words(words):

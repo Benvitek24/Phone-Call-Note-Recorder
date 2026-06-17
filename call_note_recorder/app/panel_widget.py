@@ -82,6 +82,7 @@ class PanelWidget(QWidget):
     # Top bar
     record_clicked   = pyqtSignal()   # main_window decides record vs stop by state
     delete_clicked   = pyqtSignal()
+    devices_clicked  = pyqtSignal()
     minimize_clicked = pyqtSignal()
     close_clicked    = pyqtSignal()
     # Column actions
@@ -227,6 +228,9 @@ class PanelWidget(QWidget):
         self.btn_delete.setObjectName("deleteButton")
         self.btn_delete.hide()
 
+        self.btn_devices = self._mk_button("⚙ Devices", self.devices_clicked.emit)
+        self.btn_devices.setToolTip("Choose your microphone and call-audio source")
+
         self.btn_min = self._mk_button("—", self.minimize_clicked.emit)
         self.btn_min.setFixedWidth(28)
         self.btn_close = self._mk_button("✕", self.close_clicked.emit)
@@ -238,6 +242,7 @@ class PanelWidget(QWidget):
         h.addWidget(self.status_label)
         h.addStretch(1)
         h.addWidget(self.btn_delete)
+        h.addWidget(self.btn_devices)
         h.addWidget(self.btn_min)
         h.addWidget(self.btn_close)
         return bar

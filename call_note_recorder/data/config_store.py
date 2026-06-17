@@ -17,6 +17,7 @@ DEFAULTS = {
     "window": {"x": None, "y": None, "width": 900, "height": 500},
     "app":    {"app_version": "1.0.0", "last_update_check": None},
     "crm_header": "SPT INTERNAL PROJECT",
+    "devices": {"mic_name": None, "output_name": None},
 }
 
 
@@ -31,7 +32,7 @@ class ConfigStore:
             # Merge onto defaults so missing keys are always present.
             merged = copy.deepcopy(DEFAULTS)
             merged.update({k: v for k, v in data.items() if k in merged})
-            for section in ("window", "app"):
+            for section in ("window", "app", "devices"):
                 if isinstance(data.get(section), dict):
                     merged[section] = {**DEFAULTS[section], **data[section]}
             return merged
@@ -64,6 +65,15 @@ class ConfigStore:
 
     def set_crm_header(self, text: str):
         self.data['crm_header'] = text
+        self._write()
+
+    def get_device_prefs(self):
+        """Return (mic_name, output_name); either may be None (= auto/default)."""
+        d = self.data.get('devices', DEFAULTS['devices'])
+        return d.get('mic_name'), d.get('output_name')
+
+    def set_device_prefs(self, mic_name, output_name):
+        self.data['devices'] = {'mic_name': mic_name, 'output_name': output_name}
         self._write()
 
     def _write(self):

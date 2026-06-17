@@ -22,10 +22,13 @@ class TrayManager:
 
         menu = QMenu()
         self.show_action = QAction("Show / Hide", menu)
+        self.devices_action = QAction("Audio devices…", menu)
         self.quit_action = QAction("Quit", menu)
         self.show_action.triggered.connect(app_controller.toggle_visibility)
+        self.devices_action.triggered.connect(app_controller.open_device_settings)
         self.quit_action.triggered.connect(app_controller.quit_app)
         menu.addAction(self.show_action)
+        menu.addAction(self.devices_action)
         menu.addSeparator()
         menu.addAction(self.quit_action)
 
