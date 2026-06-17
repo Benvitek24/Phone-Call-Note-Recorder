@@ -36,6 +36,10 @@ def setup_logging():
     if sys.stderr is not None:
         root.addHandler(logging.StreamHandler())
 
+    # Quiet chatty third-party libraries so our own State/flow logs stand out.
+    for noisy in ("httpx", "httpcore", "huggingface_hub", "urllib3", "faster_whisper"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
     _CONFIGURED = True
     return logging.getLogger("call_note_recorder")
 

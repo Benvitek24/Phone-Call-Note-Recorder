@@ -27,8 +27,22 @@ class ModelLoaderThread(QThread):
         try:
             self.progress.emit("Loading transcription model...")
             from faster_whisper import WhisperModel
-            whisper_model = WhisperModel("small", device="cuda", compute_type="float16")
-            log.info("Whisper loaded (small, cuda, float16)")
+            # Offline-first: load from the local cache without contacting
+            # HuggingFace (faster startup, works behind Zscaler / offline). Only
+            # if it isn't cached yet (first run) do we download it once.
+            try:
+                whisper_model = WhisperModel(
+                    "small", device="cuda", compute_type="float16",
+                    local_files_only=True,
+                )
+                log.info("Whisper loaded from local cache (small, cuda, float16)")
+            except Exception:  # noqa: BLE001 - not cached yet -> download once
+                log.info("Whisper model not cached — downloading once from HuggingFace")
+                self.progress.emit("Downloading transcription model (first run)...")
+                whisper_model = WhisperModel(
+                    "small", device="cuda", compute_type="float16",
+                )
+                log.info("Whisper downloaded + loaded (small, cuda, float16)")
         except Exception as e:  # noqa: BLE001
             log.exception("Whisper load failed")
             self.error_signal.emit(f"Transcription model failed to load: {e}")

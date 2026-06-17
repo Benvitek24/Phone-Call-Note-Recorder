@@ -53,7 +53,7 @@ class AppController(QObject):
         self.state = IDLE
         self._record_start = None
         self._one_hour_warned = False
-        self._training_saved_this_session = False
+        self._last_saved_note = None  # dedupe: text of the last training example saved this session
         self._last_transcript = ""
 
         # threads
@@ -161,7 +161,7 @@ class AppController(QObject):
         else:
             self.panel.show_loopback_warning()
 
-        self._training_saved_this_session = False
+        self._last_saved_note = None
         self._one_hour_warned = False
         self.panel.clear_all_content()
         self.panel.set_delete_visible(False)
@@ -298,23 +298,25 @@ class AppController(QObject):
         note = self.panel.get_notes_text().strip()
         if not note:
             return
-        self.training.save_example(
-            transcript=self._last_transcript,
-            ai_note=self.panel.get_summary_text().strip(),
-            rep_note=note,
-        )
-        self._training_saved_this_session = True
-        self.panel.flash_saved()
-
-    def _autosave_unsaved_notes(self):
-        note = self.panel.get_notes_text().strip()
-        if note and not self._training_saved_this_session:
+        # Re-clicking Save with unchanged text shouldn't make a duplicate.
+        if note != self._last_saved_note:
             self.training.save_example(
                 transcript=self._last_transcript,
                 ai_note=self.panel.get_summary_text().strip(),
                 rep_note=note,
             )
-            self._training_saved_this_session = True
+            self._last_saved_note = note
+        self.panel.flash_saved()
+
+    def _autosave_unsaved_notes(self):
+        note = self.panel.get_notes_text().strip()
+        if note and note != self._last_saved_note:
+            self.training.save_example(
+                transcript=self._last_transcript,
+                ai_note=self.panel.get_summary_text().strip(),
+                rep_note=note,
+            )
+            self._last_saved_note = note
 
     def _clear_session(self):
         self.panel.clear_all_content()
