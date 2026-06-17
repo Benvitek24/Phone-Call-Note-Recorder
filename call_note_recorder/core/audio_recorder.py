@@ -169,21 +169,51 @@ class RecordingThread(QThread):
             # read on a SILENT loopback stream (no system audio playing) never
             # returns, so the stop flag would never be seen and the app would
             # hang on Stop. Polling lets us check _stop_flag continuously.
+            #
+            # Real-time alignment: a WASAPI loopback delivers NO samples while
+            # the output is silent, so the captured audio would be shorter than
+            # wall-clock and the customer's timeline would drift earlier and
+            # earlier, scrambling You/Customer order on long calls. We fix this
+            # by draining everything available each pass, then padding any
+            # silent gap (detected via wall-clock vs samples captured) with
+            # silence so this stream stays aligned to real time.
+            sr = int(sample_rate)
+            bytes_per_frame = channels * 2          # int16 * channels
+            min_gap = int(sr * 0.10)                # ignore <100ms of jitter
+            start = time.time()
+            samples_written = 0                     # per-channel samples appended
+            data_samples = 0                        # real (non-padded) samples
+            padded_samples = 0
             while not self._stop_flag:
                 try:
                     avail = stream.get_read_available()
                     if avail <= 0:
                         time.sleep(0.005)
                         continue
-                    to_read = CHUNK if avail >= CHUNK else avail
-                    frames_list.append(
-                        stream.read(to_read, exception_on_overflow=False)
-                    )
+                    # Drain everything available so a backlog never looks like a
+                    # silent gap during continuous audio.
+                    data = stream.read(avail, exception_on_overflow=False)
+
+                    # How far behind real time are we (excluding what we just read)?
+                    elapsed = int((time.time() - start) * sr)
+                    gap = elapsed - samples_written - avail
+                    if gap >= min_gap:
+                        frames_list.append(b"\x00" * (gap * bytes_per_frame))
+                        samples_written += gap
+                        padded_samples += gap
+
+                    frames_list.append(data)
+                    samples_written += avail
+                    data_samples += avail
                 except (OSError, IOError):
                     # Device removed / unplugged mid-recording.
                     self._disconnected = True
                     self._stop_flag = True
                     break
+
+            log.info("stream %s: %.1fs audio + %.1fs padded silence = %.1fs total",
+                     str(device_info.get('name'))[:24],
+                     data_samples / sr, padded_samples / sr, samples_written / sr)
         except Exception as e:  # noqa: BLE001
             log.exception("Stream open/read failed for %s", device_info.get('name'))
             self._disconnected = True
