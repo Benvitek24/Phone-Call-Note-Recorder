@@ -153,6 +153,9 @@ class AppController(QObject):
 
     def start_recording(self):
         self.mic_device, self.loopback_device = detect_devices()
+        log.info("Devices selected — mic (You): %r | loopback (Customer): %r",
+                 (self.mic_device or {}).get('name'),
+                 (self.loopback_device or {}).get('name'))
         if self.mic_device is None:
             self.panel.set_status(
                 "No microphone detected. Check audio settings.", "error")
