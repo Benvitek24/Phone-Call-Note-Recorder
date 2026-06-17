@@ -92,6 +92,8 @@ class PanelWidget(QWidget):
     retry_clicked    = pyqtSignal()
     # Banners
     download_update_clicked = pyqtSignal()
+    # CRM copy header (review #5)
+    header_changed = pyqtSignal(str)
     # Geometry persistence
     geometry_changed = pyqtSignal()
 
@@ -140,17 +142,41 @@ class PanelWidget(QWidget):
         self.update_banner.hide()
         root.addWidget(self.update_banner)
 
+        # CRM copy header (review #5): editable, prepended when copying the
+        # Summary or My Notes. Persisted to config between sessions.
+        header_row = QWidget()
+        header_row.setObjectName("headerRow")
+        hr = QHBoxLayout(header_row)
+        hr.setContentsMargins(12, 4, 12, 4)
+        hr.setSpacing(8)
+        hr_label = QLabel("Copy header:")
+        hr_label.setObjectName("headerLabel")
+        from PyQt6.QtWidgets import QLineEdit
+        self.header_edit = QLineEdit()
+        self.header_edit.setObjectName("headerEdit")
+        self.header_edit.setPlaceholderText("(no header)")
+        self.header_edit.editingFinished.connect(
+            lambda: self.header_changed.emit(self.header_edit.text()))
+        hr.addWidget(hr_label)
+        hr.addWidget(self.header_edit, 1)
+        root.addWidget(header_row)
+
         # Columns
         self.columns_host = QWidget()
         self.col_layout = QHBoxLayout(self.columns_host)
         self.col_layout.setContentsMargins(0, 0, 0, 0)
         self.col_layout.setSpacing(1)
 
-        self.col_transcript = _Column("Transcript", editable=False)
-        self.col_summary    = _Column("Summary", editable=False)
+        # Transcript + Summary are editable too (review #2) — you can fix a
+        # mis-hearing or tweak the note before copying.
+        self.col_transcript = _Column("Transcript", editable=True)
+        self.col_summary    = _Column("Summary", editable=True)
         self.col_notes      = _Column("My Notes", editable=True,
-                                      placeholder="Type your own note here...")
+                                      placeholder="Click here and type your own note...")
+        self.col_notes.content.setObjectName("notesEditor")  # styled to look clickable (#3)
         self._columns = [self.col_transcript, self.col_summary, self.col_notes]
+        # Reset the Save button's confirmed state once the note is edited (#4).
+        self.col_notes.content.textChanged.connect(self._reset_save_button)
 
         # Action-bar buttons
         self.btn_copy_transcript = self._mk_button("Copy", self.copy_transcript.emit)
@@ -321,10 +347,29 @@ class PanelWidget(QWidget):
         self.col_notes.content.clear()
         self.btn_retry.hide()
 
-    def flash_saved(self):
-        from PyQt6.QtCore import QTimer
-        self.btn_save.setText("Saved ✓")
-        QTimer.singleShot(2000, lambda: self.btn_save.setText("Save"))
+    def show_saved_confirmation(self, count: int):
+        # Stronger, persistent confirmation (review #4): green button with the
+        # running example count, stays until the note is edited again.
+        self.btn_save.setText(f"Saved ✓  ({count} saved)")
+        self.btn_save.setStyleSheet(
+            "background-color: rgba(48, 209, 88, 0.25);"
+            " border: 1px solid rgba(48, 209, 88, 0.55); color: #30D158;"
+        )
+
+    def _reset_save_button(self):
+        if self.btn_save.text() != "Save":
+            self.btn_save.setText("Save")
+            self.btn_save.setStyleSheet("")  # back to default QSS
+
+    def focus_notes(self):
+        self.col_notes.content.setFocus()
+
+    # CRM copy header (review #5)
+    def set_crm_header(self, text: str):
+        self.header_edit.setText(text or "")
+
+    def get_crm_header(self) -> str:
+        return self.header_edit.text().strip()
 
     # banners
     def show_loopback_warning(self):

@@ -16,6 +16,7 @@ DEFAULTS = {
     "version": "1.0",
     "window": {"x": None, "y": None, "width": 900, "height": 500},
     "app":    {"app_version": "1.0.0", "last_update_check": None},
+    "crm_header": "SPT INTERNAL PROJECT",
 }
 
 
@@ -56,6 +57,13 @@ class ConfigStore:
 
     def set_last_update_check(self, iso_timestamp: str):
         self.data.setdefault('app', {})['last_update_check'] = iso_timestamp
+        self._write()
+
+    def get_crm_header(self) -> str:
+        return self.data.get('crm_header', DEFAULTS['crm_header'])
+
+    def set_crm_header(self, text: str):
+        self.data['crm_header'] = text
         self._write()
 
     def _write(self):

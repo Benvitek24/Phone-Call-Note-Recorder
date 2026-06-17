@@ -89,6 +89,29 @@ QTextEdit, QLabel#contentLabel {
 }
 QTextEdit { padding: 12px; }
 
+/* My Notes: look obviously like a clickable text box (review #3) */
+QTextEdit#notesEditor {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+}
+QTextEdit#notesEditor:focus {
+    border: 1px solid rgba(48, 209, 88, 0.60);
+}
+
+/* CRM copy header field (review #5) */
+#headerRow { background-color: rgba(15, 15, 17, 0.6); }
+#headerLabel { color: #999999; font-size: 12px; }
+QLineEdit#headerEdit {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: #F0F0F0;
+    font-size: 12px;
+    padding: 3px 8px;
+}
+QLineEdit#headerEdit:focus { border: 1px solid rgba(255, 255, 255, 0.30); }
+
 QScrollBar:vertical {
     background: transparent; width: 8px; margin: 0;
 }

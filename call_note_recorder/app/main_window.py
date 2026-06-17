@@ -93,15 +93,19 @@ class AppController(QObject):
         self.panel.minimize_clicked.connect(self.on_minimize)
         self.panel.close_clicked.connect(self.on_close_requested)
         # Panel column actions
+        # Transcript copies raw; Summary + My Notes get the CRM header prepended.
         self.panel.copy_transcript.connect(
             lambda: self._copy(self.panel.get_transcript_text()))
         self.panel.copy_summary.connect(
-            lambda: self._copy(self.panel.get_summary_text()))
+            lambda: self._copy_with_header(self.panel.get_summary_text()))
         self.panel.copy_notes.connect(
-            lambda: self._copy(self.panel.get_notes_text()))
+            lambda: self._copy_with_header(self.panel.get_notes_text()))
         self.panel.save_clicked.connect(self.on_save_notes)
         self.panel.retry_clicked.connect(self.on_retry)
         self.panel.download_update_clicked.connect(self.on_download_update)
+        # CRM header: load saved value, persist on edit (review #5)
+        self.panel.set_crm_header(self.config.get_crm_header())
+        self.panel.header_changed.connect(self.config.set_crm_header)
         # Geometry persistence
         self.panel.geometry_changed.connect(self._save_geometry)
 
@@ -306,7 +310,9 @@ class AppController(QObject):
                 rep_note=note,
             )
             self._last_saved_note = note
-        self.panel.flash_saved()
+        self.panel.show_saved_confirmation(self.training.count())
+        self.panel.set_status(
+            f"Note saved to training ({self.training.count()} examples)", "summarizing")
 
     def _autosave_unsaved_notes(self):
         note = self.panel.get_notes_text().strip()
@@ -425,6 +431,7 @@ class AppController(QObject):
         elif new_state == COMPLETE:
             self.panel.set_record_button_recording(False)
             self.panel.set_delete_visible(True)
+            self.panel.focus_notes()  # ready to type your own note (review #3)
 
     def _show_panel(self):
         self.icon.hide()
@@ -435,6 +442,14 @@ class AppController(QObject):
     def _copy(self, text):
         if text:
             pyperclip.copy(text)
+
+    def _copy_with_header(self, text):
+        header = self.panel.get_crm_header()
+        body = (text or "").strip()
+        if header and body:
+            self._copy(f"{header}\n\n{body}")
+        else:
+            self._copy(body)
 
     def _save_geometry(self):
         g = self.panel.geometry()

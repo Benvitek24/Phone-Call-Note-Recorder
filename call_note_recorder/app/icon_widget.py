@@ -6,7 +6,8 @@ from PyQt6.QtWidgets import QWidget, QPushButton, QLabel, QVBoxLayout
 from app.styles import ICON_WIDGET_QSS
 from app.win32_effects import apply_acrylic
 
-ICON_SIZE = 68
+ICON_SIZE = 92          # larger so it's easy to spot / hit (review #6)
+BTN_SIZE = 52
 EDGE_MARGIN = 20
 
 
@@ -17,6 +18,7 @@ class IconWidget(QWidget):
         super().__init__()
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |   # float above all windows (review #1)
             Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -30,7 +32,7 @@ class IconWidget(QWidget):
 
         self.record_btn = QPushButton("●")
         self.record_btn.setObjectName("recordButton")
-        self.record_btn.setFixedSize(36, 36)
+        self.record_btn.setFixedSize(BTN_SIZE, BTN_SIZE)
         self.record_btn.setEnabled(False)  # disabled until models load
         self.record_btn.setToolTip("Loading...")
         self.record_btn.clicked.connect(self.clicked.emit)
@@ -79,16 +81,20 @@ class IconWidget(QWidget):
         self.timer_label.setText(text)
 
     # ---- styles -----------------------------------------------------------
+    _RADIUS = BTN_SIZE // 2
+
     def _set_idle_style(self):
+        # Idle = a clear, prominent red record dot (review #6: stand out).
         self.record_btn.setText("●")
         self.record_btn.setStyleSheet(
-            "background-color: rgba(255, 255, 255, 0.15); border-radius: 18px;"
-            " color: #FFFFFF; font-size: 16px;"
+            f"background-color: #FF3B30; border-radius: {self._RADIUS}px;"
+            f" color: #FFFFFF; font-size: 22px;"
         )
 
     # ---- pulse ------------------------------------------------------------
     def start_pulse(self):
-        self.record_btn.setText("●")
+        # Recording = pulsing red square (stop affordance) + timer.
+        self.record_btn.setText("■")
         self._pulse_value = 255
         self._pulse_direction = -1
         self._pulse_timer.start(30)
@@ -106,8 +112,8 @@ class IconWidget(QWidget):
             self._pulse_direction = -1
         alpha = self._pulse_value / 255.0
         self.record_btn.setStyleSheet(
-            f"background-color: rgba(255, 59, 48, {alpha:.2f}); border-radius: 18px;"
-            f" color: #FFFFFF; font-size: 16px;"
+            f"background-color: rgba(255, 59, 48, {alpha:.2f}); border-radius: {self._RADIUS}px;"
+            f" color: #FFFFFF; font-size: 20px;"
         )
 
     # ---- acrylic ----------------------------------------------------------
