@@ -37,7 +37,8 @@ Rules:
 - Never pad with filler phrases or pleasantries
 - Always end with the action taken or next step
 - Preserve product names and model numbers exactly as spoken
-- Do not use bullet points"""
+- Do not use bullet points
+- The transcript is auto-merged from two separate audio channels ("You" = the rep, "Customer" = the other party) by timestamp, so turns may be interleaved, split mid-sentence, or contain filler/back-channel words ("yeah", "okay"). Reconstruct what was actually discussed; do not be thrown off by fragmentation."""
 
 
 def load_llm() -> Llama:

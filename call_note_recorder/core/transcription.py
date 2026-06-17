@@ -37,16 +37,16 @@ class TranscriptionThread(QThread):
 
     def run(self):
         try:
-            mic_segments = self._transcribe(MIC_WAV, "You",
-                                            "Transcribing your audio...")
+            mic_words = self._transcribe(MIC_WAV, "You",
+                                         "Transcribing your audio...")
 
-            loopback_segments = []
+            loopback_words = []
             if self.has_loopback and os.path.exists(LOOPBACK_WAV):
-                loopback_segments = self._transcribe(
+                loopback_words = self._transcribe(
                     LOOPBACK_WAV, "Customer", "Transcribing customer audio..."
                 )
 
-            transcript = self._merge_and_format(mic_segments, loopback_segments)
+            transcript = self._merge_words(mic_words + loopback_words)
 
             for path in (MIC_WAV, LOOPBACK_WAV):
                 try:
@@ -61,41 +61,57 @@ class TranscriptionThread(QThread):
             self.error_signal.emit(str(e))
 
     def _transcribe(self, wav_path, speaker, progress_msg):
-        segments_out = []
+        """Transcribe one channel. Returns a flat list of timestamped words so
+        the two channels can be interleaved at word granularity (much better
+        ordering on overlapping/back-channel speech than whole-segment merging).
+        Still emits segment_ready per segment for the live "working" feel."""
+        words_out = []
         if not os.path.exists(wav_path):
-            return segments_out
+            return words_out
         self.progress_update.emit(progress_msg)
-        segments, _info = self.model.transcribe(wav_path, language="en", beam_size=5)
+        segments, _info = self.model.transcribe(
+            wav_path, language="en", beam_size=5, word_timestamps=True
+        )
         for seg in segments:  # generator -> processed incrementally
             text = seg.text.strip()
-            if not text:
-                continue
-            segments_out.append(
-                {"speaker": speaker, "text": text, "start": seg.start, "end": seg.end}
-            )
-            self.segment_ready.emit(speaker, text)
-        return segments_out
+            if text:
+                self.segment_ready.emit(speaker, text)
+            seg_words = getattr(seg, "words", None) or []
+            added = False
+            for w in seg_words:
+                token = w.word or ""
+                if not token.strip():
+                    continue
+                start = w.start if w.start is not None else seg.start
+                words_out.append({"speaker": speaker, "word": token, "start": start})
+                added = True
+            # Fallback if word timestamps are unavailable for this segment.
+            if not added and text:
+                words_out.append({"speaker": speaker, "word": " " + text,
+                                  "start": seg.start})
+        return words_out
 
     @staticmethod
-    def _merge_and_format(mic_segs, loopback_segs):
-        all_segs = [s for s in (mic_segs + loopback_segs) if s["text"]]
-        all_segs.sort(key=lambda s: s["start"])
-        if not all_segs:
+    def _merge_words(words):
+        """Interleave both channels' words by time, grouped into speaker turns."""
+        words = [w for w in words if w.get("start") is not None]
+        words.sort(key=lambda w: w["start"])
+        if not words:
             return ""
 
         lines = []
         current_speaker = None
-        current_texts = []
-        for seg in all_segs:
-            if seg["speaker"] != current_speaker:
-                if current_speaker and current_texts:
-                    lines.append(f"{current_speaker}: {' '.join(current_texts)}")
-                current_speaker = seg["speaker"]
-                current_texts = [seg["text"]]
+        current_tokens = []
+        for w in words:
+            if w["speaker"] != current_speaker:
+                if current_speaker and current_tokens:
+                    lines.append(f"{current_speaker}: {''.join(current_tokens).strip()}")
+                current_speaker = w["speaker"]
+                current_tokens = [w["word"]]
             else:
-                current_texts.append(seg["text"])
-        if current_speaker and current_texts:
-            lines.append(f"{current_speaker}: {' '.join(current_texts)}")
+                current_tokens.append(w["word"])
+        if current_speaker and current_tokens:
+            lines.append(f"{current_speaker}: {''.join(current_tokens).strip()}")
 
         return "\n\n".join(lines)
 
