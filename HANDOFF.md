@@ -119,6 +119,13 @@ example* with the current call, producing an off-topic summary.
   4. Keep temperature 0.3; reduce example count if needed.
 - Get Ben to paste the offending transcript + resulting summary + his
   `training_data\<USER>.json` to confirm which example bled in.
+- **Design this together with User Requests #2 and #4 below.** Ben wants direct
+  prompt control (explicit do/don'ts) and is unclear how the note-learning works
+  (it's few-shot style examples each call, not model retraining). The clean
+  solution to this whole area is one coherent change: (a) feed rep_notes as
+  STYLE-only examples (fix contamination), (b) add a user-editable persisted
+  "Custom instructions" field injected into the system prompt, (c) tighten the
+  base prompt's do/don't structure.
 
 ### 2. (PENDING VALIDATION) Bleed suppression + device picker
 Just shipped; needs Ben to test on (a) the bad "Jack Mic"/speaker setup — confirm
@@ -143,6 +150,28 @@ correctness (see issue #1), not style polish, unless he asks.
 - `version.py GITHUB_REPO` is set; no GitHub Releases cut yet (updater is dormant).
 
 ---
+
+### 5. User feature requests (Ben, 2026-06-18) — verbatim + annotations
+1. **Re-summarize after editing the transcript.** A "Retry" button exists in the
+   Summary column, but it re-runs on `self._last_transcript` (the ORIGINAL), not
+   the edited panel text. Fix: have re-summarize read the current transcript from
+   `panel.get_transcript_text()` (and update `_last_transcript`). Possibly rename
+   the control "Re-summarize" and surface it after edits.
+2. **Improve the base prompt now that there are real examples** — Ben wants
+   something "like a Claude skill" with explicit do's/don'ts. → Same work as
+   OPEN ISSUE #1 (prompt area). Use `Project (10).md` §5 for his style.
+3. **Open the full panel from the small icon** (to review the last note, or change
+   the CRM header / audio devices) without starting a recording. Today an icon
+   click only records, and in COMPLETE→minimize, clicking record auto-clears.
+   Add a non-record way to open the panel — e.g. right-click icon → "Open", a small
+   expand affordance on the icon, or a tray "Open panel" entry. (Tray already has
+   "Audio devices…" and "Show / Hide", but Show/Hide in IDLE shows the icon, not
+   the panel.)
+4. **A user-editable prompt/custom-instructions field** (like "My Notes" but for the
+   LLM instructions) so Ben can directly say "do this / don't do that." → Same work
+   as OPEN ISSUE #1; this is the "Custom instructions" field. Persist it in config
+   (like `crm_header`) and inject into the system prompt. Also briefly explain to
+   Ben how few-shot learning works so expectations are clear.
 
 ## Hard constraints (do not break)
 PyQt6 only; llama-cpp-python (CPU, source build); never mix mic+loopback before
